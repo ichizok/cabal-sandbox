@@ -1,6 +1,7 @@
 #!/bin/bash
 
 declare -r SANDBOX_HOME=${SANDBOX_HOME:-$HOME/.cabal-sandbox}
+declare -r COMMAND="`basename $0`"
 
 usage() {
     echo "Usage: $0 register"
@@ -26,7 +27,7 @@ detect_sandbox() {
 }
 
 register() {
-    local -r src="`basename $0`"
+    local -r launcher="$COMMAND"
     local -r sandbox="`detect_sandbox bin`"
     if [[ ! "$sandbox" ]]; then
         echo "Could not find .cabal-sandbox directory or executables." >&2
@@ -34,23 +35,22 @@ register() {
     fi
     mkdir -p "$SANDBOX_HOME/bin"
     for name in "$sandbox"/*; do
-        ln -s "$src" "$SANDBOX_HOME/bin/`basename $name`"
+        ln -s "$launcher" "$SANDBOX_HOME/bin/`basename $name`"
     done
     return 0
 }
 
 execute() {
     local -r sandbox="`detect_sandbox bin`"
-    local -r binname="$1"
-    local -r binpath="$sandbox/$binname"
+    local -r binpath="$sandbox/$COMMAND"
     if [[ ! "$sandbox" ]] || [[ ! -x "$binpath" ]]; then
-        echo "cabal-sandbox: command not found: $binname" >&2
+        echo "cabal-sandbox: command not found: $COMMAND" >&2
         return 1
     fi
     exec "$binpath" "$@"
 }
 
-if [[ $0 = 'cabal-sandbox' ]]; then
+if [[ $COMMAND = 'cabal-sandbox' ]]; then
     case "$1" in
         register)
             register
@@ -61,5 +61,5 @@ if [[ $0 = 'cabal-sandbox' ]]; then
     esac
     exit $?
 else
-    execute "$0" "$@"
+    execute "$@"
 fi
