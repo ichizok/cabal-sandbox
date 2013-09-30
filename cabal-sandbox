@@ -1,6 +1,7 @@
 #!/bin/bash
 
 declare -r SANDBOX_HOME=${SANDBOX_HOME:-$HOME/.cabal-sandbox}
+declare -r LAUNCHER="${LAUNCHER:-'cabal-sandbox'}"
 declare -r COMMAND="`basename $0`"
 
 usage() {
@@ -27,7 +28,6 @@ detect_sandbox() {
 }
 
 register() {
-    local -r launcher="$COMMAND"
     local -r sandbox="`detect_sandbox bin`"
     if [[ ! "$sandbox" ]]; then
         echo "Could not find .cabal-sandbox directory or executables." >&2
@@ -35,7 +35,7 @@ register() {
     fi
     mkdir -p "$SANDBOX_HOME/bin"
     for name in "$sandbox"/*; do
-        ln -s "$launcher" "$SANDBOX_HOME/bin/`basename $name`"
+        ln -s "$LAUNCHER" "$SANDBOX_HOME/bin/`basename $name`"
     done
     return 0
 }
@@ -50,7 +50,7 @@ execute() {
     exec "$binpath" "$@"
 }
 
-if [[ $COMMAND = 'cabal-sandbox' ]]; then
+if [[ $COMMAND = $LAUNCHER ]]; then
     case "$1" in
         register)
             register
