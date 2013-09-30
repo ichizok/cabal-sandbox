@@ -1,18 +1,30 @@
 #!/bin/bash
 
-declare -r SANDBOX_HOME=${SANDBOX_HOME:-$HOME/.cabal-sandbox}
-declare -r LAUNCHER="${LAUNCHER:-'cabal-sandbox'}"
+declare -x SANDBOX_LOCAL
+declare -r SANDBOX_HOME="${SANDBOX_HOME:-$HOME/.cabal-sandbox}"
+declare -r LAUNCHER="${LAUNCHER:-cabal-sandbox}"
 declare -r COMMAND="`basename $0`"
 
 usage() {
-    echo "Usage: $0 register"
-    return 1
+    cat <<EOT
+Usage:
+    $COMMAND [--sandbox dir] register
+    $COMMAND [--sandbox dir] -- command [...]
+EOT
+    exit 1
 }
 
 detect_sandbox() {
     local sub="${1:+/$1}"
-    local cwd="${2:-$PWD}"
-    local tmp sandbox
+    local sandbox
+    if [[ "$SANDBOX_LOCAL" ]]; then
+        sandbox="$SANDBOX_LOCAL$sub"
+        if [[ -d "$sandbox" ]]; then
+            echo "$sandbox"
+        fi
+        return
+    fi
+    local cwd="${2:-$PWD}" tmp
     while true; do
         sandbox="$cwd/.cabal-sandbox$sub"
         if [[ -d "$sandbox" ]]; then
@@ -31,35 +43,51 @@ register() {
     local -r sandbox="`detect_sandbox bin`"
     if [[ ! "$sandbox" ]]; then
         echo "Could not find .cabal-sandbox directory or executables." >&2
-        return 1
+        exit 1
     fi
     mkdir -p "$SANDBOX_HOME/bin"
-    for name in "$sandbox"/*; do
-        ln -s "$LAUNCHER" "$SANDBOX_HOME/bin/`basename $name`"
+    local dest
+    for dest in "$sandbox"/*; do
+        dest="$SANDBOX_HOME/bin/`basename $dest`"
+        [[ -f "$dest" ]] || ln -s "$LAUNCHER" "$dest"
     done
-    return 0
+    exit 0
 }
 
 execute() {
     local -r sandbox="`detect_sandbox bin`"
-    local -r binpath="$sandbox/$COMMAND"
+    local -r exename="$1"
+    local -r binpath="$sandbox/$exename"
     if [[ ! "$sandbox" ]] || [[ ! -x "$binpath" ]]; then
-        echo "cabal-sandbox: command not found: $COMMAND" >&2
+        echo "cabal-sandbox: command not found: $exename" >&2
         return 1
     fi
+    shift
     exec "$binpath" "$@"
 }
 
 if [[ $COMMAND = $LAUNCHER ]]; then
-    case "$1" in
-        register)
-            register
-            ;;
-        *)
-            usage
-            ;;
-    esac
-    exit $?
+    declare -a args=("" "$@")
+    declare -i i=1
+    while [[ $i -le $# ]]; do
+        case "${args[$i]}" in
+            --sandbox)
+                SANDBOX_LOCAL="$(cd ${args[$i+1]} 2>/dev/null && pwd)"
+                i=$i+1
+                ;;
+            --)
+                shift $i
+                execute "$@"
+                ;;
+            register)
+                register
+                ;;
+            *)
+                usage
+                ;;
+        esac
+        i=$i+1
+    done
 else
-    execute "$@"
+    execute "$COMMAND" "$@"
 fi
