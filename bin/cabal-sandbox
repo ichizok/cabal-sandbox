@@ -1,17 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 declare -x SANDBOX_LOCAL
-declare -r SANDBOX_HOME="${SANDBOX_HOME:-$HOME/.cabal-sandbox}"
+declare -x SANDBOX_HOME="${SANDBOX_HOME:-$HOME/.cabal-sandbox}"
 declare -r LAUNCHER="${LAUNCHER:-cabal-sandbox}"
-declare -r COMMAND="`basename $0`"
+declare -r COMMAND="$(basename $0)"
 
 usage() {
     cat <<EOT
-Usage:
-    $COMMAND [--sandbox dir] register
-    $COMMAND [--sandbox dir] -- command [...]
+Usage: $COMMAND [--sandbox dir] register
+   or: $COMMAND [--sandbox dir] -- command [...]
 EOT
-    exit 1
+}
+
+check_path() {
+    local sandbox="$1"
+    [[ -d "$sandbox" ]] && [[ $sandbox != $SANDBOX_HOME* ]]
 }
 
 detect_sandbox() {
@@ -19,7 +22,7 @@ detect_sandbox() {
     local sandbox
     if [[ "$SANDBOX_LOCAL" ]]; then
         sandbox="$SANDBOX_LOCAL$sub"
-        if [[ -d "$sandbox" ]]; then
+        if check_path "$sandbox"; then
             echo "$sandbox"
         fi
         return
@@ -27,7 +30,7 @@ detect_sandbox() {
     local cwd="${2:-$PWD}" tmp
     while true; do
         sandbox="$cwd/.cabal-sandbox$sub"
-        if [[ -d "$sandbox" ]]; then
+        if check_path "$sandbox"; then
             echo "$sandbox"
             return
         fi
@@ -42,8 +45,8 @@ detect_sandbox() {
 register() {
     local -r sandbox="`detect_sandbox bin`"
     if [[ ! "$sandbox" ]]; then
-        echo "Could not find .cabal-sandbox directory or executables." >&2
-        exit 1
+        echo "Could not detect .cabal-sandbox directory or executables." >&2
+        return 1
     fi
     mkdir -p "$SANDBOX_HOME/bin"
     local dest
@@ -51,19 +54,19 @@ register() {
         dest="$SANDBOX_HOME/bin/`basename $dest`"
         [[ -f "$dest" ]] || ln -s "$LAUNCHER" "$dest"
     done
-    exit 0
+    return 0
 }
 
 execute() {
     local -r sandbox="`detect_sandbox bin`"
     local -r exename="$1"
-    local -r binpath="$sandbox/$exename"
-    if [[ ! "$sandbox" ]] || [[ ! -x "$binpath" ]]; then
+    local -r exepath="$sandbox/$exename"
+    if [[ ! "$sandbox" ]] || [[ ! -x "$exepath" ]]; then
         echo "cabal-sandbox: command not found: $exename" >&2
-        return 1
+        return
     fi
     shift
-    exec "$binpath" "$@"
+    exec "$exepath" "$@"
 }
 
 if [[ $COMMAND = $LAUNCHER ]]; then
@@ -78,12 +81,16 @@ if [[ $COMMAND = $LAUNCHER ]]; then
             --)
                 shift $i
                 execute "$@"
+                exit 1
                 ;;
             register)
+                SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD}"
                 register
+                exit $?
                 ;;
             *)
                 usage
+                exit 1
                 ;;
         esac
         i=$i+1
