@@ -84,7 +84,7 @@ if [[ $COMMAND = $LAUNCHER ]]; then
                 exit 1
                 ;;
             register)
-                SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD}"
+                SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}"
                 register
                 exit $?
                 ;;
