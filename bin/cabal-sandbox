@@ -64,9 +64,13 @@ register() {
 execute() {
     local -r sandbox="$(detect_sandbox bin)"
     local -r exename="$1"
+    if [[ ! "$sandbox" ]]; then
+        echo "Could not detect .cabal-sandbox directory." >&2
+        return
+    fi
     local -r exepath="$sandbox/$exename"
-    if [[ ! "$sandbox" ]] || [[ ! -x "$exepath" ]]; then
-        echo "cabal-sandbox: command not found: $exename" >&2
+    if [[ ! -x "$exepath" ]]; then
+        echo "cabal-sandbox: command not found: $exename (on $sandbox)" >&2
         return
     fi
     shift
