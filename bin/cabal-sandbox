@@ -34,31 +34,35 @@ detect_sandbox() {
             echo "$sandbox"
             return
         fi
-        tmp=`dirname $cwd`
+        tmp="$(dirname "$cwd")"
         if [[ $tmp = $cwd ]]; then
             break
         fi
-        cwd=$tmp
+        cwd="$tmp"
     done
 }
 
 register() {
-    local -r sandbox="`detect_sandbox bin`"
+    local -r sandbox="$(detect_sandbox bin)"
     if [[ ! "$sandbox" ]]; then
         echo "Could not detect .cabal-sandbox directory or executables." >&2
         return 1
     fi
     mkdir -p "$SANDBOX_HOME/bin"
-    local dest
+    local dest name
     for dest in "$sandbox"/*; do
-        dest="$SANDBOX_HOME/bin/`basename $dest`"
-        [[ -f "$dest" ]] || ln -s "$LAUNCHER" "$dest"
+        name="$(basename "$dest")"
+        dest="$SANDBOX_HOME/bin/$name"
+        if [[ ! -f "$dest" ]]; then
+            ln -s "$LAUNCHER" "$dest"
+            echo "cabal-sandbox: register $name"
+        fi
     done
     return 0
 }
 
 execute() {
-    local -r sandbox="`detect_sandbox bin`"
+    local -r sandbox="$(detect_sandbox bin)"
     local -r exename="$1"
     local -r exepath="$sandbox/$exename"
     if [[ ! "$sandbox" ]] || [[ ! -x "$exepath" ]]; then
@@ -75,7 +79,7 @@ if [[ $COMMAND = $LAUNCHER ]]; then
     while [[ $i -le $# ]]; do
         case "${args[$i]}" in
             --sandbox)
-                SANDBOX_LOCAL="$(cd ${args[$i+1]} 2>/dev/null && pwd)"
+                SANDBOX_LOCAL="$(cd "${args[$i+1]}" 2>/dev/null && pwd)"
                 i=$i+1
                 ;;
             --)
