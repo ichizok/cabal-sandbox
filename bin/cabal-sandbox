@@ -7,7 +7,7 @@ declare -r COMMAND="$(basename $0)"
 
 usage() {
     cat <<EOT
-Usage: $COMMAND [--sandbox dir] register
+Usage: $COMMAND [--sandbox dir] detect|register
    or: $COMMAND [--sandbox dir] -- command [...]
 EOT
 }
@@ -21,25 +21,34 @@ detect_sandbox() {
     local sub="${1:+/$1}"
     local sandbox
     if [[ "$SANDBOX_LOCAL" ]]; then
-        sandbox="$SANDBOX_LOCAL$sub"
+        sandbox="$(echo $SANDBOX_LOCAL$sub)"
         if check_path "$sandbox"; then
             echo "$sandbox"
+            return 0
         fi
-        return
+    else
+        local cwd="${2:-$PWD}" tmp
+        while true; do
+            sandbox="$cwd/.cabal-sandbox$sub"
+            if check_path "$sandbox"; then
+                echo "$sandbox"
+                return 0
+            fi
+            tmp="$(dirname "$cwd")"
+            if [[ $tmp = $cwd ]]; then
+                break
+            fi
+            cwd="$tmp"
+        done
     fi
-    local cwd="${2:-$PWD}" tmp
-    while true; do
-        sandbox="$cwd/.cabal-sandbox$sub"
-        if check_path "$sandbox"; then
-            echo "$sandbox"
-            return
-        fi
-        tmp="$(dirname "$cwd")"
-        if [[ $tmp = $cwd ]]; then
-            break
-        fi
-        cwd="$tmp"
-    done
+    return 1
+}
+
+detect_package_db() {
+    local -r sandbox="$(detect_sandbox '*packages.conf.d')"
+    if [[ "$sandbox" ]]; then
+        echo "-package-db=$sandbox"
+    fi
 }
 
 register() {
@@ -90,6 +99,14 @@ if [[ $COMMAND = $LAUNCHER ]]; then
                 shift $i
                 execute "$@"
                 exit 1
+                ;;
+            detect)
+                detect_sandbox "${args[$i+1]}"
+                exit $?
+                ;;
+            package-db)
+                detect_package_db
+                exit $?
                 ;;
             register)
                 SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}"
