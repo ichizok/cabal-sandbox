@@ -29,7 +29,7 @@ detect_sandbox() {
     else
         local cwd="${2:-$PWD}" tmp
         while true; do
-            sandbox="$cwd/.cabal-sandbox$sub"
+            sandbox="$(echo $cwd/.cabal-sandbox$sub)"
             if check_path "$sandbox"; then
                 echo "$sandbox"
                 return 0
