@@ -86,40 +86,50 @@ execute() {
     exec "$exepath" "$@"
 }
 
-if [[ $COMMAND = $LAUNCHER ]]; then
-    declare -a args=("" "$@")
-    declare -i i=1
-    while [[ $i -le $# ]]; do
-        case "${args[$i]}" in
-            --sandbox)
-                SANDBOX_LOCAL="$(cd "${args[$i+1]}" 2>/dev/null && pwd)"
-                i=$i+1
-                ;;
-            --)
-                shift $i
-                execute "$@"
-                exit 1
-                ;;
-            detect)
-                detect_sandbox "${args[$i+1]}"
-                exit $?
-                ;;
-            package-db)
-                detect_package_db
-                exit $?
-                ;;
-            register)
-                SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}"
-                register
-                exit $?
-                ;;
-            *)
-                usage
-                exit 1
-                ;;
-        esac
-        i=$i+1
-    done
-else
-    execute "$COMMAND" "$@"
-fi
+_main() {
+    if [[ $COMMAND = $LAUNCHER ]]; then
+        local -a args=("" "$@")
+        local -i i
+        local opt optarg
+        for (( i=1; i<=$#; i++ )); do
+            opt="${args[$i]}" 
+            case "$opt" in
+                --sandbox|--sandbox=*)
+                    if [[ "$opt" = --sandbox=* ]]; then
+                        optarg="${opt#--sandbox=}"
+                    else
+                        i=$i+1
+                        optarg="${args[$i]}" 
+                    fi
+                    SANDBOX_LOCAL="$(cd "$optarg" 2>/dev/null && pwd)"
+                    ;;
+                --)
+                    shift $i
+                    execute "$@"
+                    exit 1
+                    ;;
+                detect)
+                    detect_sandbox
+                    exit $?
+                    ;;
+                package-db)
+                    detect_package_db
+                    exit $?
+                    ;;
+                register)
+                    SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}"
+                    register
+                    exit $?
+                    ;;
+                *)
+                    usage
+                    exit 1
+                    ;;
+            esac
+        done
+    else
+        execute "$COMMAND" "$@"
+    fi
+}
+
+_main "$@"
