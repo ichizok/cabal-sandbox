@@ -4,11 +4,20 @@ declare -x SANDBOX_LOCAL
 declare -x SANDBOX_HOME="${SANDBOX_HOME:-$HOME/.cabal-sandbox}"
 declare -r LAUNCHER="${LAUNCHER:-cabal-sandbox}"
 declare -r COMMAND="$(basename $0)"
+declare -r ERRCODE=127
+
+_msg() {
+    echo "$LAUNCHER: $@"
+}
+
+_err() {
+    echo "$LAUNCHER: $@" >&2
+}
 
 usage() {
-    cat <<EOT
-Usage: $COMMAND [--sandbox dir] detect|register
-   or: $COMMAND [--sandbox dir] -- command [...]
+    cat <<EOT >&2
+Usage: ${COMMAND} [--sandbox dir] detect|register
+   or: ${COMMAND} [--sandbox dir] -- command [...]
 EOT
 }
 
@@ -41,7 +50,7 @@ detect_sandbox() {
             cwd="$tmp"
         done
     fi
-    return 1
+    return "${ERRCODE}"
 }
 
 detect_package_db() {
@@ -54,8 +63,8 @@ detect_package_db() {
 register() {
     local -r sandbox="$(detect_sandbox bin)"
     if [[ ! "$sandbox" ]]; then
-        echo "Could not detect .cabal-sandbox directory or executables." >&2
-        return 1
+        _err "could not detect \`.cabal-sandbox' directory or executables"
+        return "${ERRCODE}"
     fi
     mkdir -p "$SANDBOX_HOME/bin"
     local dest name
@@ -64,7 +73,7 @@ register() {
         dest="$SANDBOX_HOME/bin/$name"
         if [[ ! -f "$dest" ]]; then
             ln -s "$LAUNCHER" "$dest"
-            echo "cabal-sandbox: register $name"
+            _msg "register $name"
         fi
     done
     return 0
@@ -74,13 +83,13 @@ execute() {
     local -r sandbox="$(detect_sandbox bin)"
     local -r exename="$1"
     if [[ ! "$sandbox" ]]; then
-        echo "Could not detect .cabal-sandbox directory." >&2
-        return
+        _err "could not detect \`.cabal-sandbox' directory"
+        return "${ERRCODE}"
     fi
     local -r exepath="$sandbox/$exename"
     if [[ ! -x "$exepath" ]]; then
-        echo "cabal-sandbox: command not found: $exename (on $sandbox)" >&2
-        return
+        _err "command not found: $exename (on $sandbox)"
+        return "${ERRCODE}"
     fi
     shift
     exec "$exepath" "$@"
@@ -94,6 +103,10 @@ _main() {
         for (( i=1; i<=$#; i++ )); do
             opt="${args[$i]}" 
             case "$opt" in
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
                 --sandbox|--sandbox=*)
                     if [[ "$opt" = --sandbox=* ]]; then
                         optarg="${opt#--sandbox=}"
@@ -106,7 +119,7 @@ _main() {
                 --)
                     shift $i
                     execute "$@"
-                    exit 1
+                    exit "${ERRCODE}"
                     ;;
                 detect)
                     detect_sandbox
@@ -122,6 +135,7 @@ _main() {
                     exit $?
                     ;;
                 *)
+                    _err "invalid option: $opt"
                     usage
                     exit 1
                     ;;
