@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 declare SANDBOX_LOCAL
-declare SANDBOX_HOME=${SANDBOX_HOME:-$HOME/.cabal-sandbox}
+declare SANDBOX_HOME
 
 declare -r LAUNCHER=${LAUNCHER:-cabal-sandbox}
 declare -r COMMAND=$(basename "$0")
@@ -22,9 +22,15 @@ Usage: ${COMMAND} [--sandbox dir] detect|register
 EOT
 }
 
+sandbox_home() {
+    local fp
+    [[ "$0" =~ / ]] && fp=$0 || fp=$(which "$0")
+    fp=$(cd "${fp%/*}" && pwd); echo "${fp%/*}"
+}
+
 check_path() {
     local sandbox=$1
-    [[ -d "$sandbox" ]] && [[ $sandbox != $SANDBOX_HOME* ]]
+    [[ -d "$sandbox" ]] && [[ ! $sandbox =~ ^$SANDBOX_HOME ]]
 }
 
 detect_sandbox() {
@@ -64,7 +70,7 @@ detect_package_db() {
 register() {
     local -r sandbox=$(detect_sandbox bin)
     if [[ ! "$sandbox" ]]; then
-        _err "could not detect \`.cabal-sandbox' directory or executables"
+        _err "could not detect sandbox directory or executables"
         return "${ERRCODE}"
     fi
     mkdir -p "$SANDBOX_HOME/bin"
@@ -84,7 +90,7 @@ execute() {
     local -r sandbox=$(detect_sandbox bin)
     local -r exename=$1
     if [[ ! "$sandbox" ]]; then
-        _err "could not detect \`.cabal-sandbox' directory"
+        _err "could not detect sandbox directory"
         return "${ERRCODE}"
     fi
     local -r exepath=$sandbox/$exename
@@ -97,7 +103,13 @@ execute() {
 }
 
 _main() {
-    if [[ $COMMAND = $LAUNCHER ]]; then
+    SANDBOX_HOME=$(sandbox_home)
+    if [[ ! "$SANDBOX_HOME" ]]; then
+        _err "could not resolve SANDBOX_HOME"
+        exit 1
+    fi
+
+    if [[ "$COMMAND" = $LAUNCHER ]]; then
         local -a args=("" "$@")
         local -i i
         local opt optarg
@@ -115,7 +127,7 @@ _main() {
                         i=$i+1
                         optarg=${args[$i]} 
                     fi
-                    SANDBOX_LOCAL=$(cd "$optarg" 2>/dev/null && pwd)
+                    SANDBOX_LOCAL=$(cd "$optarg" && pwd)
                     ;;
                 --)
                     shift $i
