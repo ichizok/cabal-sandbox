@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
-declare -x SANDBOX_LOCAL
-declare -x SANDBOX_HOME="${SANDBOX_HOME:-$HOME/.cabal-sandbox}"
-declare -r LAUNCHER="${LAUNCHER:-cabal-sandbox}"
-declare -r COMMAND="$(basename $0)"
+declare SANDBOX_LOCAL
+declare SANDBOX_HOME=${SANDBOX_HOME:-$HOME/.cabal-sandbox}
+
+declare -r LAUNCHER=${LAUNCHER:-cabal-sandbox}
+declare -r COMMAND=$(basename "$0")
 declare -r ERRCODE=127
 
 _msg() {
@@ -22,46 +23,46 @@ EOT
 }
 
 check_path() {
-    local sandbox="$1"
+    local sandbox=$1
     [[ -d "$sandbox" ]] && [[ $sandbox != $SANDBOX_HOME* ]]
 }
 
 detect_sandbox() {
-    local sub="${1:+/$1}"
+    local sub=${1:+/$1}
     local sandbox
     if [[ "$SANDBOX_LOCAL" ]]; then
-        sandbox="$(echo $SANDBOX_LOCAL$sub)"
+        sandbox=$(echo $SANDBOX_LOCAL$sub)
         if check_path "$sandbox"; then
             echo "$sandbox"
             return 0
         fi
     else
-        local cwd="${2:-$PWD}" tmp
+        local cwd=${2:-$PWD} tmp
         while true; do
-            sandbox="$(echo $cwd/.cabal-sandbox$sub)"
+            sandbox=$(echo $cwd/.cabal-sandbox$sub)
             if check_path "$sandbox"; then
                 echo "$sandbox"
                 return 0
             fi
-            tmp="$(dirname "$cwd")"
+            tmp=$(dirname "$cwd")
             if [[ $tmp = $cwd ]]; then
                 break
             fi
-            cwd="$tmp"
+            cwd=$tmp
         done
     fi
     return "${ERRCODE}"
 }
 
 detect_package_db() {
-    local -r sandbox="$(detect_sandbox '*packages.conf.d')"
+    local -r sandbox=$(detect_sandbox '*packages.conf.d')
     if [[ "$sandbox" ]]; then
         echo "-package-db=$sandbox"
     fi
 }
 
 register() {
-    local -r sandbox="$(detect_sandbox bin)"
+    local -r sandbox=$(detect_sandbox bin)
     if [[ ! "$sandbox" ]]; then
         _err "could not detect \`.cabal-sandbox' directory or executables"
         return "${ERRCODE}"
@@ -69,8 +70,8 @@ register() {
     mkdir -p "$SANDBOX_HOME/bin"
     local dest name
     for dest in "$sandbox"/*; do
-        name="$(basename "$dest")"
-        dest="$SANDBOX_HOME/bin/$name"
+        name=$(basename "$dest")
+        dest=$SANDBOX_HOME/bin/$name
         if [[ ! -f "$dest" ]]; then
             ln -s "$LAUNCHER" "$dest"
             _msg "register $name"
@@ -80,13 +81,13 @@ register() {
 }
 
 execute() {
-    local -r sandbox="$(detect_sandbox bin)"
-    local -r exename="$1"
+    local -r sandbox=$(detect_sandbox bin)
+    local -r exename=$1
     if [[ ! "$sandbox" ]]; then
         _err "could not detect \`.cabal-sandbox' directory"
         return "${ERRCODE}"
     fi
-    local -r exepath="$sandbox/$exename"
+    local -r exepath=$sandbox/$exename
     if [[ ! -x "$exepath" ]]; then
         _err "command not found: $exename (on $sandbox)"
         return "${ERRCODE}"
@@ -101,7 +102,7 @@ _main() {
         local -i i
         local opt optarg
         for (( i=1; i<=$#; i++ )); do
-            opt="${args[$i]}" 
+            opt=${args[$i]} 
             case "$opt" in
                 -h|--help)
                     usage
@@ -109,12 +110,12 @@ _main() {
                     ;;
                 --sandbox|--sandbox=*)
                     if [[ "$opt" = --sandbox=* ]]; then
-                        optarg="${opt#--sandbox=}"
+                        optarg=${opt#--sandbox=}
                     else
                         i=$i+1
-                        optarg="${args[$i]}" 
+                        optarg=${args[$i]} 
                     fi
-                    SANDBOX_LOCAL="$(cd "$optarg" 2>/dev/null && pwd)"
+                    SANDBOX_LOCAL=$(cd "$optarg" 2>/dev/null && pwd)
                     ;;
                 --)
                     shift $i
@@ -130,7 +131,7 @@ _main() {
                     exit $?
                     ;;
                 register)
-                    SANDBOX_LOCAL="${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}"
+                    SANDBOX_LOCAL=${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}
                     register
                     exit $?
                     ;;
