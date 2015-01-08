@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
+declare GHC_VERSION
 declare SANDBOX_LOCAL
 declare SANDBOX_HOME
 
 declare -r LAUNCHER=${LAUNCHER:-cabal-sandbox}
-declare -r COMMAND=$(basename "$0")
+declare -r COMMAND=${0##*/}
 declare -r ERRCODE=127
 
 _msg() {
@@ -22,6 +23,11 @@ Usage: ${COMMAND} [--sandbox dir] detect|register
 EOT
 }
 
+ghc_version() {
+    type ghc >/dev/null 2>&1 || return 1
+    ghc --version | sed 's/^.* version //'
+}
+
 sandbox_home() {
     local fp
     [[ "$0" =~ / ]] && fp=$0 || fp=$(which "$0")
@@ -33,50 +39,76 @@ check_path() {
     [[ -d "$sandbox" ]] && [[ ! $sandbox =~ ^$SANDBOX_HOME ]]
 }
 
-detect_sandbox() {
-    local sub=${1:+/$1}
-    local sandbox
-    if [[ "$SANDBOX_LOCAL" ]]; then
-        sandbox=$(echo $SANDBOX_LOCAL$sub)
-        if check_path "$sandbox"; then
-            echo "$sandbox"
-            return 0
-        fi
-    else
-        local cwd=${2:-$PWD} tmp
-        while true; do
-            sandbox=$(echo $cwd/.cabal-sandbox$sub)
-            if check_path "$sandbox"; then
-                echo "$sandbox"
-                return 0
-            fi
-            tmp=$(dirname "$cwd")
-            if [[ $tmp = $cwd ]]; then
-                break
-            fi
+find_sandbox_config() {
+        local -r sbconf=cabal.sandbox.config
+        local cwd=${2:-$PWD}
+        local tmp=$cwd
+        while [[ ! -f "$cwd/$sbconf" ]]; do
+            tmp=${cwd%/*}
+            [[ "$tmp" = "$cwd" ]] && return 1
             cwd=$tmp
         done
-    fi
-    return "${ERRCODE}"
+        echo "$cwd/$sbconf"
 }
 
-detect_package_db() {
-    local -r sandbox=$(detect_sandbox '*packages.conf.d')
-    if [[ "$sandbox" ]]; then
-        echo "-package-db=$sandbox"
+detect_sandbox() {
+    local sandbox
+    if [[ "$SANDBOX_LOCAL" ]]; then
+        sandbox=$SANDBOX_LOCAL
+    else
+        local -r sbconf=$(find_sandbox_config)
+        if [[ ! "$sbconf" ]]; then
+            _err 'could not find sandbox config'
+            return "${ERRCODE}"
+        fi
+        while read; do
+            if [[ "$REPLY" =~ ^\ *prefix: ]]; then
+                sandbox=$(echo "$REPLY" | sed 's/^\ *prefix:\ *//')
+            fi
+        done <"$sbconf"
     fi
+    if ! check_path "$sandbox"; then
+        _err 'could not detect sandbox directory'
+        return "${ERRCODE}"
+    fi
+    echo "$sandbox"
+}
+
+detect_sandbox_bindir() {
+    local -r sandbox=$(detect_sandbox)
+    if [[ ! "$sandbox" ]]; then
+        return "${ERRCODE}"
+    fi
+    local -r bindir=$sandbox/bin
+    if [[ ! -d "$bindir" ]]; then
+        _err 'could not detect executable in sandbox'
+        return "${ERRCODE}"
+    fi
+    echo "$bindir"
+}
+
+detect_sandbox_package_db() {
+    local -r sandbox=$(detect_sandbox)
+    if [[ ! "$sandbox" ]]; then
+        return "${ERRCODE}"
+    fi
+    local -r package_db=$(echo $sandbox/$(uname -i)-*-ghc-${GHC_VERSION}-packages.conf.d)
+    if [[ ! -d "$package_db" ]]; then
+        _err 'could not detect package-db in sandbox'
+        return "${ERRCODE}"
+    fi
+    echo "$package_db"
 }
 
 register() {
-    local -r sandbox=$(detect_sandbox bin)
+    local -r sandbox=$(detect_sandbox_bindir)
     if [[ ! "$sandbox" ]]; then
-        _err "could not detect sandbox directory or executables"
         return "${ERRCODE}"
     fi
     mkdir -p "$SANDBOX_HOME/bin"
     local dest name
     for dest in "$sandbox"/*; do
-        name=$(basename "$dest")
+        name=${dest##*/}
         dest=$SANDBOX_HOME/bin/$name
         if [[ ! -f "$dest" ]]; then
             ln -s "$LAUNCHER" "$dest"
@@ -87,10 +119,9 @@ register() {
 }
 
 execute() {
-    local -r sandbox=$(detect_sandbox bin)
+    local -r sandbox=$(detect_sandbox_bindir)
     local -r exename=$1
     if [[ ! "$sandbox" ]]; then
-        _err "could not detect sandbox directory"
         return "${ERRCODE}"
     fi
     local -r exepath=$sandbox/$exename
@@ -103,13 +134,19 @@ execute() {
 }
 
 _main() {
-    SANDBOX_HOME=$(sandbox_home)
+    : ${GHC_VERSION:=$(ghc_version)}
+    if [[ ! "$GHC_VERSION" ]]; then
+        _err "could not detect ghc version"
+        exit 1
+    fi
+
+    : ${SANDBOX_HOME:=$(sandbox_home)}
     if [[ ! "$SANDBOX_HOME" ]]; then
         _err "could not resolve SANDBOX_HOME"
         exit 1
     fi
 
-    if [[ "$COMMAND" = $LAUNCHER ]]; then
+    if [[ "$COMMAND" = "$LAUNCHER" ]]; then
         local -a args=("" "$@")
         local -i i
         local opt optarg
@@ -139,11 +176,10 @@ _main() {
                     exit $?
                     ;;
                 package-db)
-                    detect_package_db
+                    detect_sandbox_package_db
                     exit $?
                     ;;
                 register)
-                    SANDBOX_LOCAL=${SANDBOX_LOCAL:-$PWD/.cabal-sandbox}
                     register
                     exit $?
                     ;;
