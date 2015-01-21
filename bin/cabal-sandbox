@@ -40,15 +40,15 @@ check_path() {
 }
 
 find_sandbox_config() {
-        local -r sbconf=cabal.sandbox.config
-        local cwd=${2:-$PWD}
-        local tmp=$cwd
-        while [[ ! -f "$cwd/$sbconf" ]]; do
-            tmp=${cwd%/*}
-            [[ "$tmp" = "$cwd" ]] && return 1
-            cwd=$tmp
-        done
-        echo "$cwd/$sbconf"
+    local -r sbconf=cabal.sandbox.config
+    local cwd=${2:-$PWD}
+    local tmp=$cwd
+    while [[ ! -f "$cwd/$sbconf" ]]; do
+        tmp=${cwd%/*}
+        [[ "$tmp" = "$cwd" ]] && return 1
+        cwd=$tmp
+    done
+    echo "$cwd/$sbconf"
 }
 
 detect_sandbox() {
