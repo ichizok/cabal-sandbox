@@ -6,7 +6,6 @@ declare SANDBOX_HOME
 
 declare -r LAUNCHER=${LAUNCHER:-cabal-sandbox}
 declare -r COMMAND=${0##*/}
-declare -r ERRCODE=127
 
 _msg() {
     echo "${LAUNCHER}: $@"
@@ -59,7 +58,7 @@ detect_sandbox() {
         local -r sbconf=$(find_sandbox_config)
         if [[ ! "${sbconf}" ]]; then
             _err 'could not find sandbox config'
-            return "${ERRCODE}"
+            return 1
         fi
         while read; do
             if [[ "${REPLY}" =~ ^\ *prefix: ]]; then
@@ -69,7 +68,7 @@ detect_sandbox() {
     fi
     if ! check_path "${sandbox}"; then
         _err 'could not detect sandbox directory'
-        return "${ERRCODE}"
+        return 1
     fi
     echo "${sandbox}"
 }
@@ -77,12 +76,12 @@ detect_sandbox() {
 detect_sandbox_bindir() {
     local -r sandbox=$(detect_sandbox)
     if [[ ! "${sandbox}" ]]; then
-        return "${ERRCODE}"
+        return 1
     fi
     local -r bindir=${sandbox}/bin
     if [[ ! -d "${bindir}" ]]; then
         _err 'could not detect executable in sandbox'
-        return "${ERRCODE}"
+        return 1
     fi
     echo "${bindir}"
 }
@@ -90,12 +89,12 @@ detect_sandbox_bindir() {
 detect_sandbox_package_db() {
     local -r sandbox=$(detect_sandbox)
     if [[ ! "${sandbox}" ]]; then
-        return "${ERRCODE}"
+        return 1
     fi
     local -r package_db=$(echo ${sandbox}/$(uname -i)-*-ghc-${GHC_VERSION}-packages.conf.d)
     if [[ ! -d "${package_db}" ]]; then
         _err 'could not detect package-db in sandbox'
-        return "${ERRCODE}"
+        return 1
     fi
     echo "${package_db}"
 }
@@ -103,7 +102,7 @@ detect_sandbox_package_db() {
 register() {
     local -r sandbox=$(detect_sandbox_bindir)
     if [[ ! "${sandbox}" ]]; then
-        return "${ERRCODE}"
+        return 1
     fi
     mkdir -p "${SANDBOX_HOME}/bin"
     local dest name
@@ -122,12 +121,12 @@ execute() {
     local -r sandbox=$(detect_sandbox_bindir)
     local -r exename=$1
     if [[ ! "${sandbox}" ]]; then
-        return "${ERRCODE}"
+        return 1
     fi
     local -r exepath=${sandbox}/${exename}
     if [[ ! -x "${exepath}" ]]; then
         _err "command not found: ${exename} (on ${sandbox})"
-        return "${ERRCODE}"
+        return 127
     fi
     shift
     exec "${exepath}" "$@"
@@ -169,7 +168,7 @@ _main() {
                 --)
                     shift $i
                     execute "$@"
-                    exit "${ERRCODE}"
+                    exit $?
                     ;;
                 detect)
                     detect_sandbox
