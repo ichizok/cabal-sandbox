@@ -9,11 +9,11 @@ declare -r COMMAND=${0##*/}
 declare -r ERRCODE=127
 
 _msg() {
-    echo "$LAUNCHER: $@"
+    echo "${LAUNCHER}: $@"
 }
 
 _err() {
-    echo "$LAUNCHER: $@" >&2
+    echo "${LAUNCHER}: $@" >&2
 }
 
 usage() {
@@ -36,83 +36,83 @@ sandbox_home() {
 
 check_path() {
     local sandbox=$1
-    [[ -d "$sandbox" ]] && [[ ! $sandbox =~ ^$SANDBOX_HOME ]]
+    [[ -d "${sandbox}" ]] && [[ ! ${sandbox} =~ ^${SANDBOX_HOME} ]]
 }
 
 find_sandbox_config() {
     local -r sbconf=cabal.sandbox.config
-    local cwd=${2:-$PWD}
-    local tmp=$cwd
-    while [[ ! -f "$cwd/$sbconf" ]]; do
+    local cwd=${2:-${PWD}}
+    local tmp=${cwd}
+    while [[ ! -f "${cwd}/${sbconf}" ]]; do
         tmp=${cwd%/*}
-        [[ "$tmp" = "$cwd" ]] && return 1
-        cwd=$tmp
+        [[ "${tmp}" = "${cwd}" ]] && return 1
+        cwd=${tmp}
     done
-    echo "$cwd/$sbconf"
+    echo "${cwd}/${sbconf}"
 }
 
 detect_sandbox() {
     local sandbox
-    if [[ "$SANDBOX_LOCAL" ]]; then
-        sandbox=$SANDBOX_LOCAL
+    if [[ "${SANDBOX_LOCAL}" ]]; then
+        sandbox=${SANDBOX_LOCAL}
     else
         local -r sbconf=$(find_sandbox_config)
-        if [[ ! "$sbconf" ]]; then
+        if [[ ! "${sbconf}" ]]; then
             _err 'could not find sandbox config'
             return "${ERRCODE}"
         fi
         while read; do
-            if [[ "$REPLY" =~ ^\ *prefix: ]]; then
-                sandbox=$(echo "$REPLY" | sed 's/^\ *prefix:\ *//')
+            if [[ "${REPLY}" =~ ^\ *prefix: ]]; then
+                sandbox=$(echo "${REPLY}" | sed 's/^\ *prefix:\ *//')
             fi
-        done <"$sbconf"
+        done <"${sbconf}"
     fi
-    if ! check_path "$sandbox"; then
+    if ! check_path "${sandbox}"; then
         _err 'could not detect sandbox directory'
         return "${ERRCODE}"
     fi
-    echo "$sandbox"
+    echo "${sandbox}"
 }
 
 detect_sandbox_bindir() {
     local -r sandbox=$(detect_sandbox)
-    if [[ ! "$sandbox" ]]; then
+    if [[ ! "${sandbox}" ]]; then
         return "${ERRCODE}"
     fi
-    local -r bindir=$sandbox/bin
-    if [[ ! -d "$bindir" ]]; then
+    local -r bindir=${sandbox}/bin
+    if [[ ! -d "${bindir}" ]]; then
         _err 'could not detect executable in sandbox'
         return "${ERRCODE}"
     fi
-    echo "$bindir"
+    echo "${bindir}"
 }
 
 detect_sandbox_package_db() {
     local -r sandbox=$(detect_sandbox)
-    if [[ ! "$sandbox" ]]; then
+    if [[ ! "${sandbox}" ]]; then
         return "${ERRCODE}"
     fi
-    local -r package_db=$(echo $sandbox/$(uname -i)-*-ghc-${GHC_VERSION}-packages.conf.d)
-    if [[ ! -d "$package_db" ]]; then
+    local -r package_db=$(echo ${sandbox}/$(uname -i)-*-ghc-${GHC_VERSION}-packages.conf.d)
+    if [[ ! -d "${package_db}" ]]; then
         _err 'could not detect package-db in sandbox'
         return "${ERRCODE}"
     fi
-    echo "$package_db"
+    echo "${package_db}"
 }
 
 register() {
     local -r sandbox=$(detect_sandbox_bindir)
-    if [[ ! "$sandbox" ]]; then
+    if [[ ! "${sandbox}" ]]; then
         return "${ERRCODE}"
     fi
-    mkdir -p "$SANDBOX_HOME/bin"
+    mkdir -p "${SANDBOX_HOME}/bin"
     local dest name
-    for dest in "$sandbox"/*; do
+    for dest in "${sandbox}"/*; do
         name=${dest##*/}
-        dest=$SANDBOX_HOME/bin/$name
-        if [[ ! -f "$dest" ]]; then
-            ln -s "$LAUNCHER" "$dest"
-            _msg "register $name"
+        dest=${SANDBOX_HOME}/bin/${name}
+        if [[ ! -f "${dest}" ]]; then
+            ln -s "${LAUNCHER}" "${dest}"
+            _msg "register ${name}"
         fi
     done
     return 0
@@ -121,50 +121,50 @@ register() {
 execute() {
     local -r sandbox=$(detect_sandbox_bindir)
     local -r exename=$1
-    if [[ ! "$sandbox" ]]; then
+    if [[ ! "${sandbox}" ]]; then
         return "${ERRCODE}"
     fi
-    local -r exepath=$sandbox/$exename
-    if [[ ! -x "$exepath" ]]; then
-        _err "command not found: $exename (on $sandbox)"
+    local -r exepath=${sandbox}/${exename}
+    if [[ ! -x "${exepath}" ]]; then
+        _err "command not found: ${exename} (on ${sandbox})"
         return "${ERRCODE}"
     fi
     shift
-    exec "$exepath" "$@"
+    exec "${exepath}" "$@"
 }
 
 _main() {
     : ${GHC_VERSION:=$(ghc_version)}
-    if [[ ! "$GHC_VERSION" ]]; then
+    if [[ ! "${GHC_VERSION}" ]]; then
         _err "could not detect ghc version"
         exit 1
     fi
 
     : ${SANDBOX_HOME:=$(sandbox_home)}
-    if [[ ! "$SANDBOX_HOME" ]]; then
+    if [[ ! "${SANDBOX_HOME}" ]]; then
         _err "could not resolve SANDBOX_HOME"
         exit 1
     fi
 
-    if [[ "$COMMAND" = "$LAUNCHER" ]]; then
+    if [[ "${COMMAND}" = "${LAUNCHER}" ]]; then
         local -a args=("" "$@")
         local -i i
         local opt optarg
         for (( i=1; i<=$#; i++ )); do
             opt=${args[$i]} 
-            case "$opt" in
+            case "${opt}" in
                 -h|--help)
                     usage
                     exit 0
                     ;;
                 --sandbox|--sandbox=*)
-                    if [[ "$opt" = --sandbox=* ]]; then
+                    if [[ "${opt}" = --sandbox=* ]]; then
                         optarg=${opt#--sandbox=}
                     else
                         i=$i+1
                         optarg=${args[$i]} 
                     fi
-                    SANDBOX_LOCAL=$(cd "$optarg" && pwd)
+                    SANDBOX_LOCAL=$(cd "${optarg}" && pwd)
                     ;;
                 --)
                     shift $i
@@ -184,14 +184,14 @@ _main() {
                     exit $?
                     ;;
                 *)
-                    _err "invalid option: $opt"
+                    _err "invalid option: ${opt}"
                     usage
                     exit 1
                     ;;
             esac
         done
     else
-        execute "$COMMAND" "$@"
+        execute "${COMMAND}" "$@"
     fi
 }
 
