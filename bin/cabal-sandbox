@@ -91,7 +91,7 @@ detect_sandbox_package_db() {
     if [[ ! "${sandbox}" ]]; then
         return 1
     fi
-    local -r package_db=$(echo ${sandbox}/$(uname -i)-*-ghc-${GHC_VERSION}-packages.conf.d)
+    local -r package_db=$(command ls -1d "${sandbox}/$(uname -p)-"*"-ghc-${GHC_VERSION}-packages.conf.d" 2>/dev/null | head -n1)
     if [[ ! -d "${package_db}" ]]; then
         _err 'could not detect package-db in sandbox'
         return 1
